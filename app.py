@@ -1,53 +1,23 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
 
-# ---------------- PAGE SETUP ----------------
-st.set_page_config(page_title="LockedIn", layout="centered")
+# ----------------------------
+# App Config
+# ----------------------------
+st.set_page_config(
+    page_title="LockedIn",
+    page_icon="🔥",
+    layout="centered"
+)
 
-st.markdown("""
-<style>
-.stApp {
-    background-color: #0b0f14;
-    color: #e5e7eb;
-}
+st.title("🔥 LockedIn")
+st.write("Train hard. Track smarter. Stay locked in.")
 
-h1, h2, h3 {
-    color: #ef4444;
-    font-weight: 800;
-}
-
-label {
-    color: #9ca3af !important;
-}
-
-div.stButton > button {
-    background-color: #ef4444;
-    color: white;
-    border-radius: 6px;
-    font-weight: 700;
-    border: none;
-    padding: 0.5rem 1.2rem;
-}
-
-div.stButton > button:hover {
-    background-color: #b91c1c;
-}
-
-.stAlert {
-    border-left: 6px solid #ef4444;
-    background-color: #020617;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ---------------- HEADER ----------------
-st.title("🏋️ LockedIn")
-st.caption("Track. Progress. Dominate.")
-
-# ---------------- DATA ----------------
+# ----------------------------
+# Data setup
+# ----------------------------
 DATA_FILE = "workouts.csv"
 
 if os.path.exists(DATA_FILE):
@@ -55,16 +25,18 @@ if os.path.exists(DATA_FILE):
 else:
     df = pd.DataFrame(columns=["date", "exercise", "weight", "reps", "rpe"])
 
-# ---------------- LOG WORKOUT ----------------
-st.subheader("Log Exercise")
+# ----------------------------
+# Input Form
+# ----------------------------
+st.subheader("Log a Workout")
 
 exercise = st.text_input("Exercise name")
 weight = st.number_input("Weight (lbs)", min_value=0)
 reps = st.number_input("Reps", min_value=0)
 rpe = st.slider("RPE (effort)", 1, 10)
 
-if st.button("Log Exercise"):
-    if exercise:
+if st.button("Log Workout"):
+    if exercise.strip():
         new_entry = {
             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "exercise": exercise,
@@ -74,25 +46,30 @@ if st.button("Log Exercise"):
         }
         df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
         df.to_csv(DATA_FILE, index=False)
-        st.success("Exercise logged.")
+        st.success("Workout logged!")
     else:
-        st.warning("Enter an exercise name.")
+        st.warning("Please enter an exercise name.")
 
-# ---------------- HISTORY ----------------
+# ----------------------------
+# History
+# ----------------------------
 st.subheader("Workout History")
-st.dataframe(df)
+st.dataframe(df, use_container_width=True)
 
-# ---------------- SMART LOGIC ----------------
+# ----------------------------
+# Smart Recommendation
+# ----------------------------
 st.subheader("📈 Smart Recommendation")
 
 if not df.empty:
     last = df.iloc[-1]
+
     if last["rpe"] >= 9:
-        st.info("⚠️ High fatigue detected. Consider deloading.")
+        st.info("⚠️ High fatigue detected. Consider reducing volume or deloading.")
     elif last["reps"] >= 8:
-        st.info("✅ Strong performance. Increase weight next session.")
+        st.info("✅ Strong performance. Consider increasing weight next session.")
     else:
-        st.info("➡️ Maintain weight and aim for more reps.")
+        st.info("➡️ Maintain weight and aim to increase reps.")
 else:
-    st.write("Log a workout to get recommendations.")
+    st.info("Log a workout to receive recommendations.")
 
