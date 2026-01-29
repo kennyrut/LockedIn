@@ -1,7 +1,8 @@
 import streamlit as st
-import pandas as pd
+import sqlite3
+import uuid
 from datetime import datetime
-import os
+import pandas as pd
 
 # ----------------------------
 # App Config
@@ -13,47 +14,74 @@ st.set_page_config(
 )
 
 st.title("🔥 LockedIn")
-st.write("Train hard. Track smarter. Stay locked in.")
+st.caption("Train hard. Track smarter. Stay locked in.")
 
 # ----------------------------
-# Data setup
+# Device-based user ID
 # ----------------------------
-DATA_FILE = "workouts.csv"
+if "user_id" not in st.session_state:
+    st.session_state.user_id = str(uuid.uuid4())
 
-if os.path.exists(DATA_FILE):
-    df = pd.read_csv(DATA_FILE)
-else:
-    df = pd.DataFrame(columns=["date", "exercise", "weight", "reps", "rpe"])
+USER_ID = st.session_state.user_id
 
 # ----------------------------
-# Input Form
+# Database setup (SQLite)
+# ----------------------------
+conn = sqlite3.connect("lockedin.db", check_same_thread=False)
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS workouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    date TEXT,
+    exercise TEXT,
+    weight INTEGER,
+    reps INTEGER,
+    rpe INTEGER
+)
+""")
+conn.commit()
+
+# ----------------------------
+# Log Workout
 # ----------------------------
 st.subheader("Log a Workout")
 
-exercise = st.text_input("Exercise name")
+exercise = st.text_input("Exercise")
 weight = st.number_input("Weight (lbs)", min_value=0)
 reps = st.number_input("Reps", min_value=0)
 rpe = st.slider("RPE (effort)", 1, 10)
 
 if st.button("Log Workout"):
     if exercise.strip():
-        new_entry = {
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "exercise": exercise,
-            "weight": weight,
-            "reps": reps,
-            "rpe": rpe
-        }
-        df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
-        df.to_csv(DATA_FILE, index=False)
-        st.success("Workout logged!")
+        cursor.execute(
+            "INSERT INTO workouts (user_id, date, exercise, weight, reps, rpe) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                USER_ID,
+                datetime.now().strftime("%Y-%m-%d %H:%M"),
+                exercise,
+                weight,
+                reps,
+                rpe
+            )
+        )
+        conn.commit()
+        st.success("Workout logged 💪")
     else:
         st.warning("Please enter an exercise name.")
 
 # ----------------------------
-# History
+# Workout History (per user)
 # ----------------------------
-st.subheader("Workout History")
+st.subheader("Your Workout History")
+
+df = pd.read_sql_query(
+    "SELECT date, exercise, weight, reps, rpe FROM workouts WHERE user_id = ? ORDER BY id DESC",
+    conn,
+    params=(USER_ID,)
+)
+
 st.dataframe(df, use_container_width=True)
 
 # ----------------------------
@@ -62,7 +90,7 @@ st.dataframe(df, use_container_width=True)
 st.subheader("📈 Smart Recommendation")
 
 if not df.empty:
-    last = df.iloc[-1]
+    last = df.iloc[0]
 
     if last["rpe"] >= 9:
         st.info("⚠️ High fatigue detected. Consider reducing volume or deloading.")
@@ -72,4 +100,3 @@ if not df.empty:
         st.info("➡️ Maintain weight and aim to increase reps.")
 else:
     st.info("Log a workout to receive recommendations.")
-
