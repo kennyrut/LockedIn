@@ -1,5 +1,6 @@
 import streamlit as st
-from datetime import date, timedelta
+from datetime import date
+import calendar
 
 st.set_page_config(page_title="Lockedin", layout="centered")
 st.title("🔒 Lockedin")
@@ -12,6 +13,9 @@ if "workouts" not in st.session_state:
 
 if "current_exercises" not in st.session_state:
     st.session_state.current_exercises = []
+
+if "selected_day" not in st.session_state:
+    st.session_state.selected_day = None
 
 # -----------------------------
 # Tabs
@@ -54,7 +58,7 @@ with tab1:
             "notes": notes
         })
 
-    # Live preview of workout
+    # Live preview
     if st.session_state.current_exercises:
         st.subheader("Workout Preview")
 
@@ -78,35 +82,47 @@ with tab1:
         st.success("Workout saved to calendar")
 
 # =============================
-# CALENDAR TAB
+# CALENDAR TAB (REAL CALENDAR)
 # =============================
 with tab2:
     st.header("Calendar")
 
-    start = date.today() - timedelta(days=14)
-    days = [start + timedelta(days=i) for i in range(28)]
+    today = date.today()
+    year = today.year
+    month = today.month
 
-    for week in range(0, 28, 7):
+    st.subheader(f"{calendar.month_name[month]} {year}")
+
+    # Days of week header
+    days_of_week = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    cols = st.columns(7)
+    for i, day_name in enumerate(days_of_week):
+        cols[i].markdown(f"**{day_name}**")
+
+    # Month calendar matrix
+    cal = calendar.Calendar(calendar.SUNDAY).monthdayscalendar(year, month)
+
+    for week in cal:
         cols = st.columns(7)
-        for i, col in enumerate(cols):
-            day = days[week + i]
-            key = day.isoformat()
-
-            label = day.strftime("%d")
-
-            if key in st.session_state.workouts:
-                workout = st.session_state.workouts[key]["name"]
-                if col.button(f"{label}\n{workout}", key=key):
-                    st.session_state.selected_day = key
+        for i, day in enumerate(week):
+            if day == 0:
+                cols[i].write("")  # empty cell
             else:
-                col.write(label)
+                date_key = date(year, month, day).isoformat()
 
-    if "selected_day" in st.session_state:
-        day = st.session_state.selected_day
-        workout = st.session_state.workouts[day]
+                if date_key in st.session_state.workouts:
+                    workout_name = st.session_state.workouts[date_key]["name"]
+                    if cols[i].button(f"{day}\n{workout_name}", key=date_key):
+                        st.session_state.selected_day = date_key
+                else:
+                    cols[i].write(str(day))
+
+    # Workout details
+    if st.session_state.selected_day:
+        workout = st.session_state.workouts[st.session_state.selected_day]
 
         st.divider()
-        st.subheader(f"{day} — {workout['name']}")
+        st.subheader(f"{st.session_state.selected_day} — {workout['name']}")
 
         for ex in workout["exercises"]:
             unit = "plates" if ex["mode"] == "Plates" else "lbs"
