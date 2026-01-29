@@ -1,102 +1,108 @@
 import streamlit as st
-import sqlite3
-import uuid
-from datetime import datetime
-import pandas as pd
+from datetime import date
 
-# ----------------------------
-# App Config
-# ----------------------------
-st.set_page_config(
-    page_title="LockedIn",
-    page_icon="🔥",
-    layout="centered"
-)
+st.set_page_config(page_title="Lockedin", layout="centered")
 
-st.title("🔥 LockedIn")
-st.caption("Train hard. Track smarter. Stay locked in.")
+# -----------------------------
+# App State
+# -----------------------------
+if "workouts" not in st.session_state:
+    st.session_state.workouts = {}  
+    # format:
+    # {
+    #   "2026-01-28": {
+    #       "name": "Back",
+    #       "exercises": [
+    #           {
+    #               "name": "Row Machine",
+    #               "mode": "Plates",
+    #               "value": 4,
+    #               "sets": 5,
+    #               "reps": 5
+    #           }
+    #       ]
+    #   }
+    # }
 
-# ----------------------------
-# Device-based user ID
-# ----------------------------
-if "user_id" not in st.session_state:
-    st.session_state.user_id = str(uuid.uuid4())
+# -----------------------------
+# Header
+# -----------------------------
+st.title("🔒 Lockedin")
 
-USER_ID = st.session_state.user_id
+tab1, tab2 = st.tabs(["Workout", "Calendar"])
 
-# ----------------------------
-# Database setup (SQLite)
-# ----------------------------
-conn = sqlite3.connect("lockedin.db", check_same_thread=False)
-cursor = conn.cursor()
+# -----------------------------
+# WORKOUT TAB
+# -----------------------------
+with tab1:
+    st.header("Workout")
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS workouts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT,
-    date TEXT,
-    exercise TEXT,
-    weight INTEGER,
-    reps INTEGER,
-    rpe INTEGER
-)
-""")
-conn.commit()
+    workout_name = st.text_input("Workout name", placeholder="Back, Chest, Legs...")
+    workout_date = st.date_input("Workout date", value=date.today())
 
-# ----------------------------
-# Log Workout
-# ----------------------------
-st.subheader("Log a Workout")
+    st.subheader("Add Exercise")
 
-exercise = st.text_input("Exercise")
-weight = st.number_input("Weight (lbs)", min_value=0)
-reps = st.number_input("Reps", min_value=0)
-rpe = st.slider("RPE (effort)", 1, 10)
+    ex_name = st.text_input("Exercise name", placeholder="Row Machine")
 
-if st.button("Log Workout"):
-    if exercise.strip():
-        cursor.execute(
-            "INSERT INTO workouts (user_id, date, exercise, weight, reps, rpe) VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                USER_ID,
-                datetime.now().strftime("%Y-%m-%d %H:%M"),
-                exercise,
-                weight,
-                reps,
-                rpe
+    mode = st.radio("Tracking mode", ["Plates", "Weight"], horizontal=True)
+
+    if mode == "Plates":
+        value = st.number_input("Plates", min_value=0, step=1)
+    else:
+        value = st.number_input("Weight (lbs)", min_value=0, step=5)
+
+    sets = st.number_input("Sets", min_value=1, step=1)
+    reps = st.number_input("Reps", min_value=1, step=1)
+
+    if st.button("Add Exercise to Workout"):
+        key = workout_date.isoformat()
+
+        if key not in st.session_state.workouts:
+            st.session_state.workouts[key] = {
+                "name": workout_name,
+                "exercises": []
+            }
+
+        st.session_state.workouts[key]["exercises"].append({
+            "name": ex_name,
+            "mode": mode,
+            "value": value,
+            "sets": sets,
+            "reps": reps
+        })
+
+        st.success(f"Added {ex_name}")
+
+    # Preview current workout
+    if workout_date.isoformat() in st.session_state.workouts:
+        st.subheader("Current Workout")
+        workout = st.session_state.workouts[workout_date.isoformat()]
+
+        st.markdown(f"**{workout['name']}**")
+
+        for ex in workout["exercises"]:
+            unit = "plates" if ex["mode"] == "Plates" else "lbs"
+            st.write(
+                f"- {ex['name']}: {ex['value']} {unit}, "
+                f"{ex['sets']} sets of {ex['reps']}"
             )
-        )
-        conn.commit()
-        st.success("Workout logged 💪")
+
+# -----------------------------
+# CALENDAR TAB
+# -----------------------------
+with tab2:
+    st.header("Calendar")
+
+    if not st.session_state.workouts:
+        st.info("No workouts logged yet.")
     else:
-        st.warning("Please enter an exercise name.")
+        for day, workout in sorted(st.session_state.workouts.items(), reverse=True):
+            st.subheader(day)
+            st.markdown(f"**Workout:** {workout['name']}")
 
-# ----------------------------
-# Workout History (per user)
-# ----------------------------
-st.subheader("Your Workout History")
-
-df = pd.read_sql_query(
-    "SELECT date, exercise, weight, reps, rpe FROM workouts WHERE user_id = ? ORDER BY id DESC",
-    conn,
-    params=(USER_ID,)
-)
-
-st.dataframe(df, use_container_width=True)
-
-# ----------------------------
-# Smart Recommendation
-# ----------------------------
-st.subheader("📈 Smart Recommendation")
-
-if not df.empty:
-    last = df.iloc[0]
-
-    if last["rpe"] >= 9:
-        st.info("⚠️ High fatigue detected. Consider reducing volume or deloading.")
-    elif last["reps"] >= 8:
-        st.info("✅ Strong performance. Consider increasing weight next session.")
-    else:
-        st.info("➡️ Maintain weight and aim to increase reps.")
-else:
-    st.info("Log a workout to receive recommendations.")
+            for ex in workout["exercises"]:
+                unit = "plates" if ex["mode"] == "Plates" else "lbs"
+                st.write(
+                    f"- {ex['name']}: {ex['value']} {unit}, "
+                    f"{ex['sets']} x {ex['reps']}"
+                )
