@@ -2,8 +2,11 @@ import streamlit as st
 from datetime import date
 import calendar
 
-st.set_page_config(page_title="Lockedin", layout="centered")
-st.title("🔒 Lockedin")
+# -----------------------------
+# Page Config
+# -----------------------------
+st.set_page_config(page_title="Lockedin Fitness", layout="centered")
+st.title("🔒 Lockedin Fitness")
 
 # -----------------------------
 # Session State
@@ -13,9 +16,6 @@ if "workouts" not in st.session_state:
 
 if "current_exercises" not in st.session_state:
     st.session_state.current_exercises = []
-
-if "selected_day" not in st.session_state:
-    st.session_state.selected_day = None
 
 # -----------------------------
 # Tabs
@@ -28,15 +28,29 @@ tab1, tab2 = st.tabs(["Workout", "Calendar"])
 with tab1:
     st.header("Create Workout")
 
-    workout_name = st.text_input("Workout name", placeholder="Back, Chest, Legs")
-    workout_date = st.date_input("Workout date", value=date.today())
+    workout_name = st.text_input(
+        "Workout name",
+        placeholder="Back, Chest, Legs"
+    )
+
+    workout_date = st.date_input(
+        "Workout date",
+        value=date.today()
+    )
 
     st.divider()
     st.subheader("Add Exercise")
 
-    ex_name = st.text_input("Exercise name", placeholder="Row Machine")
+    ex_name = st.text_input(
+        "Exercise name",
+        placeholder="Row Machine"
+    )
 
-    mode = st.radio("Tracking", ["Plates", "Weight"], horizontal=True)
+    mode = st.radio(
+        "Tracking method",
+        ["Plates", "Weight"],
+        horizontal=True
+    )
 
     if mode == "Plates":
         value = st.number_input("Plates", min_value=0, step=1)
@@ -46,19 +60,23 @@ with tab1:
     sets = st.number_input("Sets", min_value=1, step=1)
     reps = st.number_input("Reps", min_value=1, step=1)
 
-    notes = st.text_input("Notes (optional)", placeholder="Optional")
+    notes = st.text_input(
+        "Notes (optional)",
+        placeholder="Optional"
+    )
 
     if st.button("➕ Add Exercise"):
-        st.session_state.current_exercises.append({
-            "name": ex_name,
-            "mode": mode,
-            "value": value,
-            "sets": sets,
-            "reps": reps,
-            "notes": notes
-        })
+        if ex_name:
+            st.session_state.current_exercises.append({
+                "name": ex_name,
+                "mode": mode,
+                "value": value,
+                "sets": sets,
+                "reps": reps,
+                "notes": notes
+            })
 
-    # Live preview
+    # Live workout preview
     if st.session_state.current_exercises:
         st.subheader("Workout Preview")
 
@@ -68,21 +86,23 @@ with tab1:
                 f"""
                 **{ex['name']}**  
                 {ex['value']} {unit} — {ex['sets']} x {ex['reps']}  
-                _{ex['notes']}_
-                """
+                <small>{ex['notes']}</small>
+                """,
+                unsafe_allow_html=True
             )
 
     if st.button("💾 Save Workout"):
-        key = workout_date.isoformat()
-        st.session_state.workouts[key] = {
-            "name": workout_name,
-            "exercises": st.session_state.current_exercises.copy()
-        }
-        st.session_state.current_exercises.clear()
-        st.success("Workout saved to calendar")
+        if workout_name and st.session_state.current_exercises:
+            key = workout_date.isoformat()
+            st.session_state.workouts[key] = {
+                "name": workout_name,
+                "exercises": st.session_state.current_exercises.copy()
+            }
+            st.session_state.current_exercises.clear()
+            st.success("Workout saved to calendar")
 
 # =============================
-# CALENDAR TAB (REAL CALENDAR)
+# CALENDAR TAB (DESK CALENDAR)
 # =============================
 with tab2:
     st.header("Calendar")
@@ -91,44 +111,79 @@ with tab2:
     year = today.year
     month = today.month
 
-    st.subheader(f"{calendar.month_name[month]} {year}")
+    month_name = calendar.month_name[month]
 
-    # Days of week header
-    days_of_week = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-    cols = st.columns(7)
-    for i, day_name in enumerate(days_of_week):
-        cols[i].markdown(f"**{day_name}**")
+    st.markdown(
+        f"<h2 style='text-align:center;'>{month_name} {year}</h2>",
+        unsafe_allow_html=True
+    )
 
-    # Month calendar matrix
     cal = calendar.Calendar(calendar.SUNDAY).monthdayscalendar(year, month)
 
+    html = """
+    <style>
+    .calendar {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        background: #ccc;
+        gap: 1px;
+    }
+    .day-header {
+        background: #f3f3f3;
+        text-align: center;
+        font-weight: bold;
+        padding: 10px;
+        border: 1px solid #bbb;
+    }
+    .day-cell {
+        background: white;
+        min-height: 110px;
+        padding: 6px;
+        border: 1px solid #bbb;
+        font-size: 12px;
+        position: relative;
+    }
+    .day-number {
+        font-weight: bold;
+        font-size: 14px;
+    }
+    .workout {
+        margin-top: 6px;
+        font-size: 11px;
+        background: #e8f0ff;
+        padding: 4px;
+        border-radius: 4px;
+    }
+    </style>
+
+    <div class="calendar">
+    """
+
+    # Day headers
+    for day in ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]:
+        html += f"<div class='day-header'>{day}</div>"
+
+    # Calendar days
     for week in cal:
-        cols = st.columns(7)
-        for i, day in enumerate(week):
+        for day in week:
             if day == 0:
-                cols[i].write("")  # empty cell
+                html += "<div class='day-cell'></div>"
             else:
                 date_key = date(year, month, day).isoformat()
+                workout = st.session_state.workouts.get(date_key)
 
-                if date_key in st.session_state.workouts:
-                    workout_name = st.session_state.workouts[date_key]["name"]
-                    if cols[i].button(f"{day}\n{workout_name}", key=date_key):
-                        st.session_state.selected_day = date_key
-                else:
-                    cols[i].write(str(day))
+                workout_html = (
+                    f"<div class='workout'>{workout['name']}</div>"
+                    if workout else ""
+                )
 
-    # Workout details
-    if st.session_state.selected_day:
-        workout = st.session_state.workouts[st.session_state.selected_day]
+                html += f"""
+                <div class='day-cell'>
+                    <div class='day-number'>{day}</div>
+                    {workout_html}
+                </div>
+                """
 
-        st.divider()
-        st.subheader(f"{st.session_state.selected_day} — {workout['name']}")
+    html += "</div>"
 
-        for ex in workout["exercises"]:
-            unit = "plates" if ex["mode"] == "Plates" else "lbs"
-            st.write(
-                f"- {ex['name']}: {ex['value']} {unit}, "
-                f"{ex['sets']} x {ex['reps']}"
-            )
-            if ex["notes"]:
-                st.caption(ex["notes"])
+    st.markdown(html, unsafe_allow_html=True)
